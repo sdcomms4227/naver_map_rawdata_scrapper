@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>네이버 지도 스크래퍼</title>
+  <link rel="stylesheet" href="/styles/main.css">
+</head>
+<body>
+  <div class="container">
+    <h1>네이버 지도 스크래퍼</h1>
+    <div class="search-form">
+      <input type="text" id="searchInput" placeholder="검색어를 입력하세요">
+      <button onclick="search()">검색</button>
+    </div>
+    <div class="logdata-viewer">
+      <h3>Log Data</h3>
+      <div id="logs"></div>
+    </div>
+    <div class="rawdata-viewer">
+      <h3>Raw Data</h3>
+      <button onclick="downloadRawData()" style="margin-bottom: 10px;">Raw Data 다운로드</button>
+      <pre id="rawdataContent"></pre>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const searchInput = document.getElementById('searchInput');
+      const rawdataViewer = document.getElementById('rawdataContent');
+      const rawdataSection = document.querySelector('.rawdata-viewer');
+      const logsContainer = document.getElementById('logs');
+
+      // WebSocket 연결
+      const ws = new WebSocket('ws://localhost:8080');
+      
+      ws.onmessage = (event) => {
+        const log = JSON.parse(event.data);
+        const logItem = document.createElement('div');
+        logItem.className = `log-item ${log.type}`;
+        logItem.textContent = log.message;
+        logsContainer.appendChild(logItem);
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+      };
+
+      // 기본 검색어 가져오기
+      fetch('/api/default-keyword')
+        .then(response => response.json())
+        .then(data => {
+          searchInput.value = data.keyword;
+        });
+
+      // 검색 함수
+      window.search = async () => {
+        const keyword = searchInput.value.trim();
+
+        if (!keyword) {
+          alert('검색어를 입력해주세요.');
+          return;
+        }
+
+        // 초기화
+        logsContainer.innerHTML = '';
+        rawdataViewer.textContent = '';
+        rawdataSection.style.display = 'block';
+
+        try {
+          const response = await fetch(`/api/search?keyword=${encodeURIComponent(keyword)}`);
+          const data = await response.json();
+
+          // rawdata 표시
+          if (data.rawdata) {
+            rawdataViewer.textContent = JSON.stringify(data.rawdata, null, 2);
+          }
+
+        } catch (error) {
+          const errorLog = document.createElement('div');
+          errorLog.className = 'log-item error';
+          errorLog.textContent = `오류가 발생했습니다: ${error.message}`;
+          logsContainer.appendChild(errorLog);
+        }
+      };
+    });
+  </script>
+  <script src="/scripts/main.js"></script>
+  <script src="/scripts/download.js"></script>
+</body>
+</html> 
