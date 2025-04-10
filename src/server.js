@@ -12,11 +12,6 @@ const wss = new WebSocket.Server({ port: 8080 });
 // 정적 파일 제공
 app.use(express.static('public'));
 
-// 기본 검색어 API
-app.get('/api/default-keyword', (req, res) => {
-  res.json({ keyword: process.env.DEFAULT_SEARCH_KEYWORD });
-});
-
 // 검색 API
 app.get('/api/search', async (req, res) => {
   const keyword = req.query.keyword;
