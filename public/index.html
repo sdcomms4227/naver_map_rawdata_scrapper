@@ -31,17 +31,34 @@
       const rawdataSection = document.querySelector('.rawdata-viewer');
       const logsContainer = document.getElementById('logs');
 
-      // WebSocket 연결
-      const ws = new WebSocket('ws://localhost:8080');
-      
-      ws.onmessage = (event) => {
-        const log = JSON.parse(event.data);
-        const logItem = document.createElement('div');
-        logItem.className = `log-item ${log.type}`;
-        logItem.textContent = log.message;
-        logsContainer.appendChild(logItem);
-        logsContainer.scrollTop = logsContainer.scrollHeight;
+      // SSE 연결
+      let eventSource = null;
+
+      const connectSSE = () => {
+        if (eventSource) {
+          eventSource.close();
+        }
+
+        eventSource = new EventSource('/api/logs');
+        
+        eventSource.onmessage = (event) => {
+          const log = JSON.parse(event.data);
+          const logItem = document.createElement('div');
+          logItem.className = `log-item ${log.type}`;
+          logItem.textContent = `[${new Date().toLocaleTimeString()}] ${log.message}`;
+          logsContainer.appendChild(logItem);
+          logsContainer.scrollTop = logsContainer.scrollHeight;
+        };
+
+        eventSource.onerror = () => {
+          eventSource.close();
+          // 재연결 시도
+          setTimeout(connectSSE, 1000);
+        };
       };
+
+      // SSE 연결 시작
+      connectSSE();
 
       // 기본 검색어 가져오기
       fetch('/api/default-keyword')
