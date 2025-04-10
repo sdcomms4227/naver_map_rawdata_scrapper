@@ -21,7 +21,7 @@
 
 1. 저장소 클론:
 ```bash
-git clone [your-repository-url]
+git clone https://github.com/sdcomms4227/naver_map_rawdata_scrapper.git
 cd naver_map_rawdata_scrapper
 ```
 
