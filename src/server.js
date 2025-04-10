@@ -1,4 +1,5 @@
-const puppeteer = require('puppeteer');
+const chromium = require('chrome-aws-lambda');
+const puppeteer = chromium.puppeteer;
 const express = require('express');
 require('dotenv').config();
 
@@ -26,17 +27,11 @@ app.get('/api/search', async (req, res) => {
   try {
     addLog('브라우저를 시작하는 중...');
     browser = await puppeteer.launch({
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--window-size=1920,1080'
-      ],
-      defaultViewport: {
-        width: 1920,
-        height: 1080
-      },
-      headless: 'new'
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath,
+      headless: chromium.headless,
+      ignoreHTTPSErrors: true
     });
 
     addLog('새 페이지를 생성했습니다.');
