@@ -36,15 +36,8 @@ app.get('/api/search', async (req, res) => {
   try {
     sendLog('브라우저를 시작하는 중...');
     const browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--disable-gpu',
-        '--window-size=1920x1080',
-      ]
+      headless: false,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
 
     sendLog('새 페이지를 생성했습니다.');
