@@ -1,38 +1,16 @@
 const puppeteer = require('puppeteer');
 const express = require('express');
+const WebSocket = require('ws');
 require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
+// WebSocket 서버 생성
+const wss = new WebSocket.Server({ port: 8080 });
+
 // 정적 파일 제공
 app.use(express.static('public'));
-
-// SSE 클라이언트 저장소
-const clients = new Set();
-
-// SSE 엔드포인트
-app.get('/api/logs', (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-
-  // 클라이언트 등록
-  clients.add(res);
-
-  // 클라이언트 연결이 끊어졌을 때 처리
-  req.on('close', () => {
-    clients.delete(res);
-  });
-});
-
-// 로그 전송 함수
-const sendLog = (message, type = 'info') => {
-  const log = { message, type };
-  clients.forEach(client => {
-    client.write(`data: ${JSON.stringify(log)}\n\n`);
-  });
-};
 
 // 기본 검색어 API
 app.get('/api/default-keyword', (req, res) => {
@@ -43,6 +21,17 @@ app.get('/api/default-keyword', (req, res) => {
 app.get('/api/search', async (req, res) => {
   const keyword = req.query.keyword;
   const logs = [];
+
+  // WebSocket 클라이언트에게 로그 전송 함수
+  const sendLog = (message, type = 'info') => {
+    const log = { message, type };
+    logs.push(log);
+    wss.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(log));
+      }
+    });
+  };
 
   if (!keyword) {
     sendLog('검색어가 제공되지 않았습니다.', 'error');
@@ -158,11 +147,18 @@ app.get('/api/search', async (req, res) => {
     }
 
     await browser.close();
-    sendLog('브라우저를 종료했습니다.');
-    return res.json({ rawdata: allRawData, logs });
+
+    if (allRawData.length > 0) {
+      sendLog('rawdata 추출이 완료되었습니다.', 'success');
+      res.json({ logs, rawdata: allRawData });
+    } else {
+      sendLog('rawdata 추출에 실패했습니다.', 'error');
+      res.json({ logs, rawdata: null });
+    }
+
   } catch (error) {
     sendLog(`오류가 발생했습니다: ${error.message}`, 'error');
-    return res.status(500).json({ error: error.message, logs });
+    res.json({ logs, rawdata: null });
   }
 });
 
