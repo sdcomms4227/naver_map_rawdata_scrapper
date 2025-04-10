@@ -127,14 +127,11 @@
     const rawdataContent = document.getElementById('rawdataContent');
 
     function downloadRawData(data, keyword) {
-      const now = new Date();
-      const kstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000));
-      const dateStr = kstDate.toISOString().split('.')[0].replace(/[:-]/g, '');
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `naver_map_data_${keyword}_${dateStr}.json`;
+      a.download = `naver_map_data_${keyword}_${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
