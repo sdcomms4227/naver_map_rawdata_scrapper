@@ -3,86 +3,195 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>네이버 지도 스크래퍼</title>
-  <link rel="stylesheet" href="/styles/main.css">
+  <title>네이버 지도 데이터 스크래퍼</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    .container {
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .search-container {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #03c75a;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #02b350;
+    }
+    #logs {
+      background-color: #f8f9fa;
+      padding: 15px;
+      border-radius: 4px;
+      height: 300px;
+      overflow-y: auto;
+      margin-bottom: 20px;
+      border: 1px solid #ddd;
+    }
+    .log {
+      margin: 5px 0;
+      padding: 5px;
+      border-radius: 3px;
+    }
+    .log.info {
+      background-color: #e9ecef;
+    }
+    .log.success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .log.error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    #result {
+      background-color: #f8f9fa;
+      padding: 15px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      white-space: pre-wrap;
+      overflow-x: auto;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .button-container {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .download-button {
+      background-color: #0066cc;
+    }
+    .download-button:hover {
+      background-color: #0052a3;
+    }
+    .download-button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
-    <h1>네이버 지도 스크래퍼</h1>
-    <div class="search-form">
-      <input type="text" id="searchInput" placeholder="검색어를 입력하세요">
+    <h1>네이버 지도 데이터 스크래퍼</h1>
+    <div class="search-container">
+      <input type="text" id="keyword" placeholder="검색어를 입력하세요">
       <button onclick="search()">검색</button>
     </div>
-    <div class="logdata-viewer">
-      <h3>Log Data</h3>
-      <div id="logs"></div>
+    <h2>로그</h2>
+    <div id="logs"></div>
+    <h2>결과</h2>
+    <div class="button-container">
+      <button id="downloadButton" class="download-button" onclick="downloadData()" disabled>데이터 다운로드</button>
     </div>
-    <div class="rawdata-viewer">
-      <h3>Raw Data</h3>
-      <button onclick="downloadRawData()" style="margin-bottom: 10px;">Raw Data 다운로드</button>
-      <pre id="rawdataContent"></pre>
-    </div>
+    <div id="result"></div>
   </div>
 
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const searchInput = document.getElementById('searchInput');
-      const rawdataViewer = document.getElementById('rawdataContent');
-      const rawdataSection = document.querySelector('.rawdata-viewer');
-      const logsContainer = document.getElementById('logs');
+    let ws;
+    let currentData = null;
+    const logsDiv = document.getElementById('logs');
+    const resultDiv = document.getElementById('result');
+    const downloadButton = document.getElementById('downloadButton');
 
-      // WebSocket 연결
-      const ws = new WebSocket('ws://localhost:8080');
-      
+    function connectWebSocket() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      ws = new WebSocket(`${protocol}//${host}`);
+
       ws.onmessage = (event) => {
         const log = JSON.parse(event.data);
-        const logItem = document.createElement('div');
-        logItem.className = `log-item ${log.type}`;
-        logItem.textContent = log.message;
-        logsContainer.appendChild(logItem);
-        logsContainer.scrollTop = logsContainer.scrollHeight;
+        const logElement = document.createElement('div');
+        logElement.className = `log ${log.type}`;
+        logElement.textContent = log.message;
+        logsDiv.appendChild(logElement);
+        logsDiv.scrollTop = logsDiv.scrollHeight;
       };
 
-      // 기본 검색어 가져오기
-      fetch('/api/default-keyword')
-        .then(response => response.json())
-        .then(data => {
-          searchInput.value = data.keyword;
-        });
-
-      // 검색 함수
-      window.search = async () => {
-        const keyword = searchInput.value.trim();
-
-        if (!keyword) {
-          alert('검색어를 입력해주세요.');
-          return;
-        }
-
-        // 초기화
-        logsContainer.innerHTML = '';
-        rawdataViewer.textContent = '';
-        rawdataSection.style.display = 'block';
-
-        try {
-          const response = await fetch(`/api/search?keyword=${encodeURIComponent(keyword)}`);
-          const data = await response.json();
-
-          // rawdata 표시
-          if (data.rawdata) {
-            rawdataViewer.textContent = JSON.stringify(data.rawdata, null, 2);
-          }
-
-        } catch (error) {
-          const errorLog = document.createElement('div');
-          errorLog.className = 'log-item error';
-          errorLog.textContent = `오류가 발생했습니다: ${error.message}`;
-          logsContainer.appendChild(errorLog);
-        }
+      ws.onclose = () => {
+        setTimeout(connectWebSocket, 1000);
       };
+    }
+
+    connectWebSocket();
+
+    function downloadData() {
+      if (!currentData) return;
+      
+      const keyword = document.getElementById('keyword').value;
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `naver_map_data_${keyword}_${timestamp}.json`;
+      
+      const blob = new Blob([JSON.stringify(currentData, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }
+
+    async function search() {
+      const keyword = document.getElementById('keyword').value;
+      if (!keyword) {
+        alert('검색어를 입력해주세요.');
+        return;
+      }
+
+      logsDiv.innerHTML = '';
+      resultDiv.textContent = '검색 중...';
+      downloadButton.disabled = true;
+      currentData = null;
+
+      try {
+        const response = await fetch(`/api/search?keyword=${encodeURIComponent(keyword)}`);
+        const data = await response.json();
+        
+        if (data.rawdata) {
+          currentData = data.rawdata;
+          resultDiv.textContent = JSON.stringify(data.rawdata, null, 2);
+          downloadButton.disabled = false;
+        } else {
+          resultDiv.textContent = '데이터를 찾을 수 없습니다.';
+          downloadButton.disabled = true;
+        }
+      } catch (error) {
+        resultDiv.textContent = `오류가 발생했습니다: ${error.message}`;
+        downloadButton.disabled = true;
+      }
+    }
+
+    // Enter 키로 검색
+    document.getElementById('keyword').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        search();
+      }
     });
   </script>
-  <script src="/scripts/main.js"></script>
-  <script src="/scripts/download.js"></script>
 </body>
 </html> 

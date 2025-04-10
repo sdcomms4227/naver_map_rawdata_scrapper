@@ -4,6 +4,8 @@ package-lock.json
 
 # Environment variables
 .env
+.env.local
+.env.*.local
 
 # Logs
 logs
@@ -32,4 +34,7 @@ coverage
 
 # OS
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# Railway
+.railway/ 

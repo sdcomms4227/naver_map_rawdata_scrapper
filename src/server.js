@@ -6,8 +6,15 @@ require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// WebSocket 서버 생성
-const wss = new WebSocket.Server({ port: 8080 });
+// Express 서버 생성
+const server = app.listen(port, () => {
+  const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+  const host = process.env.RAILWAY_STATIC_URL || 'localhost';
+  console.log(`서버가 ${protocol}://${host}:${port} 에서 실행 중입니다.`);
+});
+
+// WebSocket 서버를 Express 서버에 연결
+const wss = new WebSocket.Server({ server });
 
 // 정적 파일 제공
 app.use(express.static('public'));
@@ -237,8 +244,4 @@ app.get('/api/search', async (req, res) => {
     sendLog(`오류가 발생했습니다: ${error.message}`, 'error');
     res.json({ logs, rawdata: null });
   }
-});
-
-app.listen(port, () => {
-  console.log(`서버가 http://localhost:${port} 에서 실행 중입니다.`);
 }); 
