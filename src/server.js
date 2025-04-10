@@ -36,30 +36,112 @@ app.get('/api/search', async (req, res) => {
   try {
     sendLog('브라우저를 시작하는 중...');
     const browser = await puppeteer.launch({
-      headless: false,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      headless: "new",
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--disable-gpu',
+        '--window-size=1920,1080',
+        '--hide-scrollbars',
+        '--disable-notifications',
+        '--disable-extensions',
+        '--disable-infobars',
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process'
+      ]
     });
 
     sendLog('새 페이지를 생성했습니다.');
     const page = await browser.newPage();
+    
+    // 웹 드라이버 감지 방지
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => false,
+      });
+    });
+
+    // User-Agent 설정
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    
+    // 윈도우 크기 설정
+    await page.setViewport({
+      width: 1920,
+      height: 1080,
+      deviceScaleFactor: 1
+    });
 
     sendLog('네이버 지도 검색 페이지로 이동하는 중...');
     await page.goto(`https://map.naver.com/v5/search/${encodeURIComponent(keyword)}`, {
-      waitUntil: 'networkidle0',
-      timeout: 30000
+      waitUntil: ['networkidle0', 'domcontentloaded'],
+      timeout: 60000
     });
     sendLog('검색 페이지 로드 완료');
 
-    // iframe 찾기
-    sendLog('iframe을 찾는 중...');
-    const frameElement = await page.waitForSelector('iframe#searchIframe', { timeout: 10000 });
-    sendLog('iframe을 찾았습니다.');
+    // 페이지가 완전히 로드될 때까지 대기
+    sendLog('페이지가 완전히 로드될 때까지 대기 중...');
+    await page.waitForFunction(() => document.readyState === 'complete', { timeout: 30000 });
+    
+    // JavaScript 실행을 기다림
+    sendLog('JavaScript 실행을 기다리는 중...');
+    await page.evaluate(() => {
+      return new Promise((resolve) => {
+        if (window.performance.timing.loadEventEnd) {
+          resolve();
+        } else {
+          window.addEventListener('load', resolve);
+        }
+      });
+    });
 
+    // iframe이 동적으로 로드되는 것을 감지
+    sendLog('iframe이 로드될 때까지 대기 중...');
+    let frameElement = null;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    while (!frameElement && attempts < maxAttempts) {
+      try {
+        // iframe이 로드되었는지 확인
+        frameElement = await page.evaluate(() => {
+          const iframes = document.querySelectorAll('iframe');
+          for (const iframe of iframes) {
+            if (iframe.id === 'searchIframe' || iframe.src.includes('search')) {
+              return true;
+            }
+          }
+          return false;
+        });
+
+        if (frameElement) {
+          frameElement = await page.waitForSelector('iframe#searchIframe, iframe[src*="search"]', { 
+            timeout: 10000,
+            visible: true
+          });
+          break;
+        }
+      } catch (error) {
+        sendLog(`iframe 찾기 시도 ${attempts + 1}/${maxAttempts} 실패, 재시도 중...`);
+      }
+      
+      // 각 시도마다 5초 대기
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      attempts++;
+    }
+
+    if (!frameElement) {
+      throw new Error('iframe을 찾을 수 없습니다.');
+    }
+
+    sendLog('iframe을 찾았습니다.');
     const frame = await frameElement.contentFrame();
     sendLog('iframe 컨텍스트에 접근했습니다.');
 
-    // Wait for iframe content to load
-    sendLog('iframe 컨텐츠 로딩을 위해 5초 대기 중...');
+    // iframe 컨텐츠가 로드될 때까지 대기
+    sendLog('iframe 컨텐츠가 로드될 때까지 대기 중...');
+    await frame.waitForFunction(() => document.readyState === 'complete', { timeout: 30000 });
     await new Promise(resolve => setTimeout(resolve, 5000));
 
     // Get all page numbers
